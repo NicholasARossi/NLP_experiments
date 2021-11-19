@@ -1,17 +1,19 @@
-import numpy as np
+import torch
+
 from absl import flags
 
 flags.DEFINE_float('learning_rate',0.01,'')
 flags.DEFINE_integer('n_iters',10,'')
 FLAGS = flags.FLAGS
 
-N_ITERS = 10
+N_ITERS = 20
 LEARNING_RATE = 0.01
 
-X = np.array([1,2,3,4])
-y = np.array([2,4,6,8])
+X = torch.tensor([1,2,3,4],dtype=torch.float32)
+y = torch.tensor([2,4,6,8], dtype=torch.float32)
 
-w = 0.0
+w = torch.tensor(0.0,dtype=torch.float32, requires_grad=True)
+
 
 def forward(X):
     return X*w
@@ -35,10 +37,12 @@ for epoch in range(N_ITERS):
 
     l = loss(y,y_pred)
 
-    dw = gradient(X,y,y_pred)
+    l.backward()
+    with torch.no_grad():
+        w -= w.grad *LEARNING_RATE
 
-    w -= dw *LEARNING_RATE
 
+    w.grad.zero_()
     if epoch % 1 == 0:
         print(f'epoch {epoch +1} : w = {w:.3f} , loss = {l:.3f}')
 

@@ -11,24 +11,38 @@ flags.DEFINE_integer('batch_size',8,'')
 flags.DEFINE_float('lr',1e-2,'')
 flags.DEFINE_float('momentum',0.9,'')
 flags.DEFINE_integer('seq_length',32,'')
+flags.DEFINE_string('model', 'bert-base-uncased', '')
 FLAGS = flags.FLAGS
 
 
 class IMBDSentimentClassifier(pl.LightningModule):
     def __init__(self):
         super().__init__()
+        self.model = transformers.BertForSequenceClassification.from_pretrained(FLAGS.model)
 
     def prepare_data(self):
-        train_ds = nlp.load_dataset('imdb',split=f'train[:{FLAGS.batch_size if FLAGS.debug else "5%"}]')
         tokenizer = transformers.BertTokenizer.from_pretrained(FLAGS.model)
+
         def _tokenize(x):
-            x['input_ids']=tokenizer.encode(x['text'],
-                             max_length = FLAGS.seq_length,
-                             pad_to_max_length =True)
+            x['input_ids'] = tokenizer.encode(x['text'],
+                                              max_length=FLAGS.seq_length,
+                                              pad_to_max_length=True)
             return x
-        train_ds = train_ds.map(_tokenize)
-        train_ds.set_format(type ='torch', columns = ['input_ids','label'])
-        self.train_ds = train_ds
+
+
+        def _prepare_dataset(split):
+            ds = nlp.load_dataset('imdb',split=f'{split}[:{FLAGS.batch_size if FLAGS.debug else "5%"}]')
+
+
+
+            ds = ds.map(_tokenize)
+            ds.set_format(type ='torch', columns = ['input_ids','label'])
+            return ds
+
+        self.train_ds,self.test_ds = (_prepare_dataset('train'),_prepare_dataset('test'))
+
+
+
 
 
     def forward(self, batch):
@@ -38,7 +52,20 @@ class IMBDSentimentClassifier(pl.LightningModule):
         pass
 
     def train_dataloader(self):
-        pass
+        return th.utils.data.DataLoader(
+            self.train_ds,
+            batch_size=FLAGS.batch_size,
+            drop_last= True,
+            shuffle=True
+        )
+
+    def val_dataloader(self):
+        return th.utils.data.DataLoader(
+            self.test_ds,
+            batch_size=FLAGS.batch_size,
+            drop_last= False,
+            shuffle=False
+        )
 
     def configure_optimizers(self):
         return th.optim.SGD(
@@ -46,6 +73,7 @@ class IMBDSentimentClassifier(pl.LightningModule):
             lr = FLAGS.lr,
             momentum = FLAGS.momentum,
         )
+
 
 
 def main(_):
@@ -62,7 +90,5 @@ def main(_):
 
 
 if __name__ == '__main__':
-    if os.path.isdir('logs'):
-        os.removedirs('logs')
-    os.mkdir('logs')
+
     app.run(main)
