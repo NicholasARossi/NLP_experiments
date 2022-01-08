@@ -67,6 +67,7 @@ class IMBDSentimentClassifier(pl.LightningModule):
             shuffle=False
         )
 
+
     def configure_optimizers(self):
         return th.optim.SGD(
             self.parameters(),
